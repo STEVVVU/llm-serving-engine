@@ -1,0 +1,429 @@
+{
+  "passed": true,
+  "preflight_only": false,
+  "started_at_utc": "2026-10-22T10:53:43.594930+00:00",
+  "source_sha": "1f4221bc1a1b8b5be617cc5533815e555d14409a",
+  "source_sha256": {
+    "tools\\benchmark_serving.py": "eada4dd0ee14f0ec0ede9612a9663ac01d995fefd507ba40f3fbae0369dca2d5",
+    "tests\\test_runtime.py": "d970b8a5c9c551c15e4660c6250e8c595c9fc2343b1cbb89d07fdabd773933fe",
+    "nanovllm\\__init__.py": "fe4ff0ebc82564407c5770e94a84058f7f66a17603b73ef8810d8c3393d2949f",
+    "nanovllm\\config.py": "3a9609250f1630bb13fa948e50cc7655d217c387f1d4a19c892f8e4d37b80a78",
+    "nanovllm\\engine\\block_manager.py": "c6709bcf7bd8d2842721085890fa7cd7b792ccf2aec4330fbd60d6ed4ae389db",
+    "nanovllm\\engine\\llm_engine.py": "b9d7bb85b959de2b629b826eed7a278bfd6baf1f71e674c65b9969cddda89b88",
+    "nanovllm\\engine\\model_runner.py": "2c77492d8c5961c00ff97ad6285f8485b58bec1046eb906352382644277647a9",
+    "nanovllm\\engine\\scheduler.py": "5a494559cd2f0267de08f61f4b2e9926957dfa4c43d579d278eb7aab084de05d",
+    "nanovllm\\engine\\sequence.py": "6321a1c507317feb965c05f716a31806a4b5be1c421b30e7d024d1872c21c150",
+    "nanovllm\\engine\\torch_runner.py": "58f6b5b590ac4e6ea24c388895cec43ae20b597bf5d9a96168f17b9a00b4347d",
+    "nanovllm\\layers\\activation.py": "fe3fe26570ea8fc7b1e1b7e5d872c3ed69f9557b150bd5109fc694fa46b5f23b",
+    "nanovllm\\layers\\attention.py": "9e4d3670c0dbeaf7bf61d4899b2d0b23bca766688c23d964bb6a3fc17d6f0585",
+    "nanovllm\\layers\\embed_head.py": "9cbfed6d9bf31ebd762c53d4e1c062b4632db85e299a54d1e4091c90bbdcaec1",
+    "nanovllm\\layers\\layernorm.py": "f693b60b6d6c1e8ac205c0e3c6f88b92f3939a52f03cd9a6effa5d8c7ead4a5c",
+    "nanovllm\\layers\\linear.py": "c0601e4b2b0178b5e06185ed2dc0715f362d48d228e790b3b5503366726b9d89",
+    "nanovllm\\layers\\native_attention.py": "d0afc93f62e91133cd0de5054d74e59e9722d9554cbe364ef91a7146a6b3bf1f",
+    "nanovllm\\layers\\rotary_embedding.py": "8d2b739e2a2e3284b72f104fab876dc01fac129bb0e2dfb3f984eef47beee6fb",
+    "nanovllm\\layers\\sampler.py": "dae54949f4257ba0f584bbcf0860cb5d9c6ab4993d0b601053e0786a63fba93c",
+    "nanovllm\\llm.py": "2c5e4ecbef0b0bd9bdee3bc956ec4a3ece1838c0e79393e64b182f229e863d84",
+    "nanovllm\\models\\qwen3.py": "73fdc13f71c45bb6a6703de8120dde85da6dc273ebd61cb520a3cfd8f9724353",
+    "nanovllm\\sampling_params.py": "115d9d1ff1c47737cb8a9310c25d20fa8a57fbbf889166a8c9d4d55d8284e148",
+    "nanovllm\\server.py": "e375fea9e4aa7425dfc8fec0bcb67ce9cf13421d19f3634eabf2b6fc49fca898",
+    "nanovllm\\utils\\context.py": "ab719d3035a5c8beaa5aa69e25dcc253098f6e6f8bdefb8d296e2e55ff388426",
+    "nanovllm\\utils\\loader.py": "9a2fa9b291c2b0adc7b973a70a53150012dc2a111b285d04ea0a1934a05bae25",
+    "nanovllm\\utils\\parallel.py": "0b84ec3800fb4a5a1c7e9c570b0f7b007595d5ac7ef30b3b6ad6dd4e464e4a64"
+  },
+  "model_file_sha256": {
+    "config.json": "660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd",
+    "model.safetensors": "f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b",
+    "tokenizer.json": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+    "tokenizer_config.json": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101"
+  },
+  "command": [
+    "tools/benchmark_serving.py",
+    "--model",
+    "C:/Users/steve/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca",
+    "--output",
+    "C:\\Users\\steve\\Projects\\llm-serving-engine\\evidence\\hf-sdpa-i256-o64-c1-20261022-105338",
+    "--input-length",
+    "256",
+    "--output-length",
+    "64",
+    "--concurrency",
+    "1"
+  ],
+  "model": "C:/Users/steve/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca",
+  "model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+  "torch": "2.11.0+cu128",
+  "transformers": "5.20.2",
+  "gpu": "NVIDIA GeForce RTX 5080 Laptop GPU",
+  "numerics": "BF16, identical local Qwen weights; exact greedy parity with the independent eager oracle is required",
+  "attention_backends": {
+    "oracle": "Transformers eager, single-request full-forward greedy",
+    "hf": "Transformers sdpa with automatic CUDA dispatch and native DynamicCache",
+    "eager": "paged Torch scaled_dot_product_attention with automatic CUDA dispatch",
+    "graphs": "same paged Torch SDPA, CUDA graphs for decode",
+    "profile": "separate paged graphs arm; not native HF or paged eager"
+  },
+  "workload": {
+    "requests": 16,
+    "input_tokens": 256,
+    "output_tokens_per_request": 64,
+    "max_live_batch": 1,
+    "paged_prefill_token_budget": 256
+  },
+  "cache": "warm weights/graphs; no cross-request prefix reuse; fresh HF DynamicCache per batch",
+  "timing_scope": "generate, text decode, exact token check; paged scheduler reset included per invocation",
+  "framework": "torch.utils.benchmark.Timer.timeit(number=1), two automatic warmups per sample",
+  "order": [
+    [
+      "hf",
+      "eager",
+      "graphs"
+    ],
+    [
+      "eager",
+      "graphs",
+      "hf"
+    ],
+    [
+      "graphs",
+      "hf",
+      "eager"
+    ],
+    [
+      "graphs",
+      "eager",
+      "hf"
+    ],
+    [
+      "hf",
+      "graphs",
+      "eager"
+    ]
+  ],
+  "runs": [
+    {
+      "repeat": 0,
+      "side": "hf",
+      "seconds": 24.886192200006917,
+      "output_tokens": 1024,
+      "tokens_per_second": 41.14731541773254,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4897176576,
+      "incremental_cuda_peak_bytes": 52311552,
+      "dynamic_cache_peak_batch_bytes": 36585472,
+      "max_live_batch": 1
+    },
+    {
+      "repeat": 0,
+      "side": "eager",
+      "seconds": 26.29860569999437,
+      "output_tokens": 1024,
+      "tokens_per_second": 38.93742549249367,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4871817216,
+      "incremental_cuda_peak_bytes": 26952192,
+      "kv_tensor_bytes": 38535168,
+      "pages": {
+        "total_pages": 20,
+        "active_pages": 0,
+        "cached_pages": 19,
+        "free_pages": 1,
+        "prefix_hits": 0,
+        "evictions": 285
+      }
+    },
+    {
+      "repeat": 0,
+      "side": "graphs",
+      "seconds": 6.965062300005229,
+      "output_tokens": 1024,
+      "tokens_per_second": 147.01950332866818,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4871817216,
+      "incremental_cuda_peak_bytes": 26952192,
+      "kv_tensor_bytes": 38535168,
+      "pages": {
+        "total_pages": 20,
+        "active_pages": 0,
+        "cached_pages": 19,
+        "free_pages": 1,
+        "prefix_hits": 0,
+        "evictions": 285
+      }
+    },
+    {
+      "repeat": 1,
+      "side": "eager",
+      "seconds": 26.385093799995957,
+      "output_tokens": 1024,
+      "tokens_per_second": 38.80979191365076,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4871817216,
+      "incremental_cuda_peak_bytes": 26952192,
+      "kv_tensor_bytes": 38535168,
+      "pages": {
+        "total_pages": 20,
+        "active_pages": 0,
+        "cached_pages": 19,
+        "free_pages": 1,
+        "prefix_hits": 0,
+        "evictions": 285
+      }
+    },
+    {
+      "repeat": 1,
+      "side": "graphs",
+      "seconds": 6.926571599993622,
+      "output_tokens": 1024,
+      "tokens_per_second": 147.83648522465904,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4871817216,
+      "incremental_cuda_peak_bytes": 26952192,
+      "kv_tensor_bytes": 38535168,
+      "pages": {
+        "total_pages": 20,
+        "active_pages": 0,
+        "cached_pages": 19,
+        "free_pages": 1,
+        "prefix_hits": 0,
+        "evictions": 285
+      }
+    },
+    {
+      "repeat": 1,
+      "side": "hf",
+      "seconds": 24.02642409998225,
+      "output_tokens": 1024,
+      "tokens_per_second": 42.61974215300547,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4897176576,
+      "incremental_cuda_peak_bytes": 52311552,
+      "dynamic_cache_peak_batch_bytes": 36585472,
+      "max_live_batch": 1
+    },
+    {
+      "repeat": 2,
+      "side": "graphs",
+      "seconds": 6.90280559999519,
+      "output_tokens": 1024,
+      "tokens_per_second": 148.34547854001764,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4871817216,
+      "incremental_cuda_peak_bytes": 26952192,
+      "kv_tensor_bytes": 38535168,
+      "pages": {
+        "total_pages": 20,
+        "active_pages": 0,
+        "cached_pages": 19,
+        "free_pages": 1,
+        "prefix_hits": 0,
+        "evictions": 285
+      }
+    },
+    {
+      "repeat": 2,
+      "side": "hf",
+      "seconds": 23.47462250001263,
+      "output_tokens": 1024,
+      "tokens_per_second": 43.621574745214716,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4897176576,
+      "incremental_cuda_peak_bytes": 52311552,
+      "dynamic_cache_peak_batch_bytes": 36585472,
+      "max_live_batch": 1
+    },
+    {
+      "repeat": 2,
+      "side": "eager",
+      "seconds": 26.176821700006258,
+      "output_tokens": 1024,
+      "tokens_per_second": 39.11857641601139,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4871817216,
+      "incremental_cuda_peak_bytes": 26952192,
+      "kv_tensor_bytes": 38535168,
+      "pages": {
+        "total_pages": 20,
+        "active_pages": 0,
+        "cached_pages": 19,
+        "free_pages": 1,
+        "prefix_hits": 0,
+        "evictions": 285
+      }
+    },
+    {
+      "repeat": 3,
+      "side": "graphs",
+      "seconds": 6.894651000009617,
+      "output_tokens": 1024,
+      "tokens_per_second": 148.5209331115631,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4871817216,
+      "incremental_cuda_peak_bytes": 26952192,
+      "kv_tensor_bytes": 38535168,
+      "pages": {
+        "total_pages": 20,
+        "active_pages": 0,
+        "cached_pages": 19,
+        "free_pages": 1,
+        "prefix_hits": 0,
+        "evictions": 285
+      }
+    },
+    {
+      "repeat": 3,
+      "side": "eager",
+      "seconds": 26.06323890000931,
+      "output_tokens": 1024,
+      "tokens_per_second": 39.289053978614845,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4871817216,
+      "incremental_cuda_peak_bytes": 26952192,
+      "kv_tensor_bytes": 38535168,
+      "pages": {
+        "total_pages": 20,
+        "active_pages": 0,
+        "cached_pages": 19,
+        "free_pages": 1,
+        "prefix_hits": 0,
+        "evictions": 285
+      }
+    },
+    {
+      "repeat": 3,
+      "side": "hf",
+      "seconds": 23.53676690001157,
+      "output_tokens": 1024,
+      "tokens_per_second": 43.506400192946494,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4897176576,
+      "incremental_cuda_peak_bytes": 52311552,
+      "dynamic_cache_peak_batch_bytes": 36585472,
+      "max_live_batch": 1
+    },
+    {
+      "repeat": 4,
+      "side": "hf",
+      "seconds": 23.5869692999986,
+      "output_tokens": 1024,
+      "tokens_per_second": 43.4138013653183,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4897176576,
+      "incremental_cuda_peak_bytes": 52311552,
+      "dynamic_cache_peak_batch_bytes": 36585472,
+      "max_live_batch": 1
+    },
+    {
+      "repeat": 4,
+      "side": "graphs",
+      "seconds": 6.842735599988373,
+      "output_tokens": 1024,
+      "tokens_per_second": 149.6477519899702,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4871817216,
+      "incremental_cuda_peak_bytes": 26952192,
+      "kv_tensor_bytes": 38535168,
+      "pages": {
+        "total_pages": 20,
+        "active_pages": 0,
+        "cached_pages": 19,
+        "free_pages": 1,
+        "prefix_hits": 0,
+        "evictions": 285
+      }
+    },
+    {
+      "repeat": 4,
+      "side": "eager",
+      "seconds": 26.190624199982267,
+      "output_tokens": 1024,
+      "tokens_per_second": 39.097960864968364,
+      "offered": 16,
+      "completed": 16,
+      "errors": 0,
+      "all_models_resident_cuda_bytes": 4844865024,
+      "all_models_peak_cuda_bytes": 4871817216,
+      "incremental_cuda_peak_bytes": 26952192,
+      "kv_tensor_bytes": 38535168,
+      "pages": {
+        "total_pages": 20,
+        "active_pages": 0,
+        "cached_pages": 19,
+        "free_pages": 1,
+        "prefix_hits": 0,
+        "evictions": 285
+      }
+    }
+  ],
+  "verified_calls": {
+    "hf": 15,
+    "eager": 15,
+    "graphs": 15
+  },
+  "hf_generation_audit": {
+    "kwargs": {
+      "do_sample": false,
+      "num_beams": 1,
+      "max_new_tokens": 64,
+      "min_new_tokens": 64,
+      "eos_token_id": null,
+      "forced_eos_token_id": null,
+      "pad_token_id": 151643,
+      "use_cache": true,
+      "cache_implementation": "dynamic",
+      "disable_compile": true,
+      "return_dict_in_generate": true,
+      "output_scores": false
+    },
+    "effective_eos_token_id": null,
+    "logits_processors": [],
+    "stopping_criteria": [
+      "MaxLengthCriteria"
+    ]
+  },
+  "initialization_peak_cuda_bytes": 5108968960,
+  "peak_process_cuda_bytes": 5108968960,
+  "cleanup": "owned engines exited; allocations released on process exit",
+  "finished_at_utc": "2026-10-22T11:08:29.562861+00:00"
+}

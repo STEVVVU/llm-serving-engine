@@ -196,4 +196,5 @@ cython_debug/
 
 # Local run artifacts survive verification cleanup but are not source.
 /evidence/
+/.metrics-venv/
 /.audit/

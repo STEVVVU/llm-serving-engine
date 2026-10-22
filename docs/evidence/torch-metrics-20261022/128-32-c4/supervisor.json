@@ -1,0 +1,31 @@
+{
+  "finished_at_utc": "2026-10-22T07:48:51.0181948Z",
+  "minimum_free_disk_bytes": 146621530112,
+  "owned_process_ids": [
+    22708,
+    26936,
+    66832
+  ],
+  "pid": 22708,
+  "exit_code": 0,
+  "command": [
+    ".metrics-venv/Scripts/python.exe",
+    "tools/benchmark_serving.py",
+    "--model",
+    "C:/Users/steve/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca",
+    "--output",
+    "evidence/hf-sdpa-full-20261022-0746",
+    "--input-length",
+    "128",
+    "--output-length",
+    "32",
+    "--concurrency",
+    "4"
+  ],
+  "timed_out": false,
+  "timeout_seconds": 600,
+  "stop_reason": null,
+  "sampled_tree_peak_rss_bytes": 2594988032,
+  "started_at_utc": "2026-10-22T07:46:21.9161837Z",
+  "free_disk_bytes": 151320055808
+}

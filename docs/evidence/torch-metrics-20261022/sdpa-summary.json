@@ -1,0 +1,113 @@
+{
+  "status": "passed",
+  "scope": "Two fixed offline token-ID workload points; not service capacity, a context/concurrency sweep or a model-quality study.",
+  "model": "c1899de289a04d12100db370d81485cdf75e47ca",
+  "model_file_sha256": {
+    "config.json": "660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd",
+    "model.safetensors": "f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b",
+    "tokenizer.json": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+    "tokenizer_config.json": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101"
+  },
+  "source_sha256": {
+    "tools\\benchmark_serving.py": "eada4dd0ee14f0ec0ede9612a9663ac01d995fefd507ba40f3fbae0369dca2d5",
+    "tests\\test_runtime.py": "d970b8a5c9c551c15e4660c6250e8c595c9fc2343b1cbb89d07fdabd773933fe",
+    "nanovllm\\__init__.py": "fe4ff0ebc82564407c5770e94a84058f7f66a17603b73ef8810d8c3393d2949f",
+    "nanovllm\\config.py": "3a9609250f1630bb13fa948e50cc7655d217c387f1d4a19c892f8e4d37b80a78",
+    "nanovllm\\engine\\block_manager.py": "c6709bcf7bd8d2842721085890fa7cd7b792ccf2aec4330fbd60d6ed4ae389db",
+    "nanovllm\\engine\\llm_engine.py": "b9d7bb85b959de2b629b826eed7a278bfd6baf1f71e674c65b9969cddda89b88",
+    "nanovllm\\engine\\model_runner.py": "2c77492d8c5961c00ff97ad6285f8485b58bec1046eb906352382644277647a9",
+    "nanovllm\\engine\\scheduler.py": "5a494559cd2f0267de08f61f4b2e9926957dfa4c43d579d278eb7aab084de05d",
+    "nanovllm\\engine\\sequence.py": "6321a1c507317feb965c05f716a31806a4b5be1c421b30e7d024d1872c21c150",
+    "nanovllm\\engine\\torch_runner.py": "58f6b5b590ac4e6ea24c388895cec43ae20b597bf5d9a96168f17b9a00b4347d",
+    "nanovllm\\layers\\activation.py": "fe3fe26570ea8fc7b1e1b7e5d872c3ed69f9557b150bd5109fc694fa46b5f23b",
+    "nanovllm\\layers\\attention.py": "9e4d3670c0dbeaf7bf61d4899b2d0b23bca766688c23d964bb6a3fc17d6f0585",
+    "nanovllm\\layers\\embed_head.py": "9cbfed6d9bf31ebd762c53d4e1c062b4632db85e299a54d1e4091c90bbdcaec1",
+    "nanovllm\\layers\\layernorm.py": "f693b60b6d6c1e8ac205c0e3c6f88b92f3939a52f03cd9a6effa5d8c7ead4a5c",
+    "nanovllm\\layers\\linear.py": "c0601e4b2b0178b5e06185ed2dc0715f362d48d228e790b3b5503366726b9d89",
+    "nanovllm\\layers\\native_attention.py": "d0afc93f62e91133cd0de5054d74e59e9722d9554cbe364ef91a7146a6b3bf1f",
+    "nanovllm\\layers\\rotary_embedding.py": "8d2b739e2a2e3284b72f104fab876dc01fac129bb0e2dfb3f984eef47beee6fb",
+    "nanovllm\\layers\\sampler.py": "dae54949f4257ba0f584bbcf0860cb5d9c6ab4993d0b601053e0786a63fba93c",
+    "nanovllm\\llm.py": "2c5e4ecbef0b0bd9bdee3bc956ec4a3ece1838c0e79393e64b182f229e863d84",
+    "nanovllm\\models\\qwen3.py": "73fdc13f71c45bb6a6703de8120dde85da6dc273ebd61cb520a3cfd8f9724353",
+    "nanovllm\\sampling_params.py": "115d9d1ff1c47737cb8a9310c25d20fa8a57fbbf889166a8c9d4d55d8284e148",
+    "nanovllm\\server.py": "e375fea9e4aa7425dfc8fec0bcb67ce9cf13421d19f3634eabf2b6fc49fca898",
+    "nanovllm\\utils\\context.py": "ab719d3035a5c8beaa5aa69e25dcc253098f6e6f8bdefb8d296e2e55ff388426",
+    "nanovllm\\utils\\loader.py": "9a2fa9b291c2b0adc7b973a70a53150012dc2a111b285d04ea0a1934a05bae25",
+    "nanovllm\\utils\\parallel.py": "0b84ec3800fb4a5a1c7e9c570b0f7b007595d5ac7ef30b3b6ad6dd4e464e4a64"
+  },
+  "torch": "2.11.0+cu128",
+  "transformers": "5.20.2",
+  "gpu": "NVIDIA GeForce RTX 5080 Laptop GPU",
+  "numerics": "BF16, identical local Qwen weights; exact greedy parity with the independent eager oracle is required",
+  "arms": {
+    "hf": "Transformers generate with SDPA, automatic CUDA dispatch and native DynamicCache",
+    "eager": "portable paged Torch scaled_dot_product_attention with automatic CUDA dispatch",
+    "graphs": "same paged Torch SDPA, CUDA graphs for decode"
+  },
+  "oracle": "Transformers eager, single-request full-forward greedy; each arm call checks every generated token ID against retained expected IDs.",
+  "cache_policy": "Warm weights/graphs; no cross-request prefix reuse; fresh HF DynamicCache per batch.",
+  "timing_policy": "torch.utils.benchmark.Timer.timeit(number=1), two automatic warmups per sample; five rotated trials per arm with CUDA synchronization. Timing includes generation, text decode, exact token checks, native input transfer and paged scheduler reset; model loading and oracle construction are excluded.",
+  "hf_generation_policy": "Greedy, one beam, max_new_tokens=min_new_tokens, eos_token_id=None, forced_eos_token_id=None; preserve EOS as a possible token while disabling EOS stopping and suppression. Audit requires no logits processors and only MaxLengthCriteria.",
+  "arm_order_by_trial": [["hf", "eager", "graphs"], ["eager", "graphs", "hf"], ["graphs", "hf", "eager"], ["graphs", "eager", "hf"], ["hf", "graphs", "eager"]],
+  "prior_eager_control": "hf-three-arm-full-20261022-0737: native HF eager attention was an untuned historical comparator, not the matched native SDPA result.",
+  "points": [
+    {
+      "workload": {"requests": 16, "input_tokens": 128, "output_tokens_per_request": 32, "max_live_batch": 4, "paged_prefill_token_budget": 512},
+      "started_at_utc": "2026-10-22T07:46:27.578584+00:00",
+      "finished_at_utc": "2026-10-22T07:48:50.027172+00:00",
+      "raw_evidence": "128-32-c4/",
+      "source_receipt": "evidence/hf-sdpa-full-20261022-0746/",
+      "raw_sha256": {
+        "result.json": "0fdc9fc7e4affa2310ff878dff7a7f1324436a4c61285c6335164981a775f420",
+        "oracle.json": "029072788bdae6d33d310bda98a44578cb0bc700bcceb14d44f08dd528e8dcf6",
+        "supervisor.json": "75c1dfc142184b0f24769d2ff6f544ed42bbff0a72f6d9d10cf34d38e870717c"
+      },
+      "verified_calls_per_arm": 15,
+      "verified_measured_requests_per_arm": 80,
+      "errors_per_arm": 0,
+      "hf_generation_audit": {"effective_eos_token_id": null, "logits_processors": [], "stopping_criteria": ["MaxLengthCriteria"]},
+      "summary": [
+        {"side": "hf", "median_seconds": 3.1798418999969726, "range_seconds": [3.176547800001572, 3.2400679999991553], "median_output_tokens_per_second": 161.0142944529687},
+        {"side": "eager", "median_seconds": 3.64834630000405, "range_seconds": [3.6083141999988584, 4.1724405999993905], "median_output_tokens_per_second": 140.33755512721794},
+        {"side": "graphs", "median_seconds": 1.1916811999981292, "range_seconds": [1.1820234999904642, 1.2262988000002224], "median_output_tokens_per_second": 429.64510978339155}
+      ],
+      "page_receipts_per_paged_arm": {"total_pages": 40, "active_pages": 0, "cached_pages": 36, "free_pages": 4, "prefix_hits": 0, "evictions": 108},
+      "memory": {"initialization_peak_cuda_bytes": 5145931264, "peak_process_cuda_bytes": 5145931264, "sampled_tree_peak_rss_bytes": 2594988032, "native_dynamic_cache_peak_batch_bytes": 72941568, "paged_kv_pool_including_scratch_bytes": 75235328},
+      "supervisor": {"exit_code": 0, "timed_out": false, "timeout_seconds": 600, "minimum_free_disk_bytes": 146621530112},
+      "profile": {
+        "source": "hf-three-arm-full-20261022-0737/profile.txt and profile.json",
+        "scope": "Separate paged graphs arm, not native HF or paged eager; unchanged paged source/config and byte-identical full oracle.",
+        "prefill_calls": 4,
+        "decode_calls": 124,
+        "trace_bytes": 277470403,
+        "table_sha256": "4a13c9fa0ca9302f95e3abf9161e8ead7492c858fab2832283895931567f3aec",
+        "limits": "Overlapping CUDA annotation percentages exceed 100%; do not add them or infer wall-time shares. No baseline-arm profile; this does not establish causal attribution of timing differences."
+      }
+    },
+    {
+      "workload": {"requests": 16, "input_tokens": 256, "output_tokens_per_request": 64, "max_live_batch": 1, "paged_prefill_token_budget": 256},
+      "started_at_utc": "2026-10-22T10:53:43.594930+00:00",
+      "finished_at_utc": "2026-10-22T11:08:29.562861+00:00",
+      "raw_evidence": "256-64-c1/",
+      "source_receipt": "evidence/hf-sdpa-i256-o64-c1-20261022-105338/",
+      "raw_sha256": {
+        "result.json": "1423a659a6f09e779a44515967d3eb9b70059674cce01a1ac6065c88a2f2e657",
+        "oracle.json": "072313095a644ec394355f5601b54f0fb52d2b0c78a1fc1a1df9e297e578b153",
+        "supervisor.json": "0fbb11e5a0a9531a12f221d7b598a8fb447a204c8125131feae95ca327105ff7"
+      },
+      "verified_calls_per_arm": 15,
+      "verified_measured_requests_per_arm": 80,
+      "errors_per_arm": 0,
+      "hf_generation_audit": {"effective_eos_token_id": null, "logits_processors": [], "stopping_criteria": ["MaxLengthCriteria"]},
+      "summary": [
+        {"side": "hf", "median_seconds": 23.5869692999986, "range_seconds": [23.47462250001263, 24.886192200006917], "median_output_tokens_per_second": 43.4138013653183},
+        {"side": "eager", "median_seconds": 26.190624199982267, "range_seconds": [26.06323890000931, 26.385093799995957], "median_output_tokens_per_second": 39.097960864968364},
+        {"side": "graphs", "median_seconds": 6.90280559999519, "range_seconds": [6.842735599988373, 6.965062300005229], "median_output_tokens_per_second": 148.34547854001764}
+      ],
+      "page_receipts_per_paged_arm": {"total_pages": 20, "active_pages": 0, "cached_pages": 19, "free_pages": 1, "prefix_hits": 0, "evictions": 285},
+      "memory": {"initialization_peak_cuda_bytes": 5108968960, "peak_process_cuda_bytes": 5108968960, "sampled_tree_peak_rss_bytes": 2282287104, "native_dynamic_cache_peak_batch_bytes": 36585472, "paged_kv_pool_including_scratch_bytes": 38535168},
+      "supervisor": {"exit_code": 0, "timed_out": false, "timeout_seconds": 1800, "minimum_free_disk_bytes": 187455508480}
+    }
+  ],
+  "limitations": "Only two of the proposed 24 offline cells have been measured. No 7B result, TTFT, live service capacity, language-quality result, general framework ranking or causal winner is established."
+}

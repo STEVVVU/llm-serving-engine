@@ -21,6 +21,8 @@ The portable backend no longer imports xxhash, Triton, or flash-attn.
 
 ## Drive
 
+For framework adapters and resource grants, follow [features/metrics.md](features/metrics.md). Native HF-SDPA/paged eager/graph runs passed exact token, backend, EOS and page checks at two offline workload points: 128/32/concurrency-4 and 256/64/concurrency-1. Preserve earlier API/disk failures and the untuned HF-eager control. These two points do not establish service capacity or a causal performance winner.
+
 Run `python -m unittest discover -s tests -v` for independent HF-forward parity,
 page lifecycle and scheduling regressions. Run the driver above for real offline
 generation, concurrent HTTP completion, SSE, cancellation and page conservation.

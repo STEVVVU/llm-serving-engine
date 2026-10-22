@@ -7,6 +7,7 @@
 | [Prefix sharing and eviction](paged-inference.md) | tests/test_runtime.py | Exact radix reuse, pins, conservation |
 | [HTTP and SSE lifecycle](http.md) | tools/verify_serving.py | Concurrent results, terminal events, cancellation |
 | [CUDA decode graphs](cuda.md) | tools/verify_serving.py --device cuda | Eager parity, three live lanes in bucket four |
+| [Framework measurements](metrics.md) | Torch Timer/profiler and Locust adapters | Two offline HF-SDPA/paged eager/graphs workload points passed exact checks; SSE preflight passed |
 
 ## Sub-features
 
