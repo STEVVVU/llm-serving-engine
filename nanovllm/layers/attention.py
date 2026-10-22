@@ -1,75 +1,45 @@
 import torch
 from torch import nn
-import triton
-import triton.language as tl
-
-from flash_attn import flash_attn_varlen_func, flash_attn_with_kvcache
+import torch.nn.functional as F
 from nanovllm.utils.context import get_context
 
 
-@triton.jit
-def store_kvcache_kernel(
-    key_ptr,
-    key_stride,
-    value_ptr,
-    value_stride,
-    k_cache_ptr,
-    v_cache_ptr,
-    slot_mapping_ptr,
-    D: tl.constexpr,
-):
-    idx = tl.program_id(0)
-    slot = tl.load(slot_mapping_ptr + idx)
-    if slot == -1: return
-    key_offsets = idx * key_stride + tl.arange(0, D)
-    value_offsets = idx * value_stride + tl.arange(0, D)
-    key = tl.load(key_ptr + key_offsets)
-    value = tl.load(value_ptr + value_offsets)
-    cache_offsets = slot * D + tl.arange(0, D)
-    tl.store(k_cache_ptr + cache_offsets, key)
-    tl.store(v_cache_ptr + cache_offsets, value)
-
-
-def store_kvcache(key: torch.Tensor, value: torch.Tensor, k_cache: torch.Tensor, v_cache: torch.Tensor, slot_mapping: torch.Tensor):
-    N, num_heads, head_dim = key.shape
-    D = num_heads * head_dim
-    assert key.stride(-1) == 1 and value.stride(-1) == 1
-    assert key.stride(1) == head_dim and value.stride(1) == head_dim
-    assert k_cache.stride(1) == D and v_cache.stride(1) == D
-    assert slot_mapping.numel() == N
-    store_kvcache_kernel[(N,)](key, key.stride(0), value, value.stride(0), k_cache, v_cache, slot_mapping, D)
-
-
 class Attention(nn.Module):
-
-    def __init__(
-        self,
-        num_heads,
-        head_dim,
-        scale,
-        num_kv_heads,
-    ):
+    def __init__(self, num_heads, head_dim, scale, num_kv_heads):
         super().__init__()
-        self.num_heads = num_heads
-        self.head_dim = head_dim
-        self.scale = scale
-        self.num_kv_heads = num_kv_heads
+        self.num_heads, self.head_dim = num_heads, head_dim
+        self.scale, self.num_kv_heads = scale, num_kv_heads
         self.k_cache = self.v_cache = torch.tensor([])
+        self.backend = "torch"
 
-    def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
-        context = get_context()
-        k_cache, v_cache = self.k_cache, self.v_cache
-        if k_cache.numel() and v_cache.numel():
-            store_kvcache(k, v, k_cache, v_cache, context.slot_mapping)
-        if context.is_prefill:
-            if context.block_tables is not None:    # prefix cache
-                k, v = k_cache, v_cache
-            o = flash_attn_varlen_func(q, k, v,
-                                       max_seqlen_q=context.max_seqlen_q, cu_seqlens_q=context.cu_seqlens_q,
-                                       max_seqlen_k=context.max_seqlen_k, cu_seqlens_k=context.cu_seqlens_k,
-                                       softmax_scale=self.scale, causal=True, block_table=context.block_tables)
-        else:    # decode
-            o = flash_attn_with_kvcache(q.unsqueeze(1), k_cache, v_cache,
-                                        cache_seqlens=context.context_lens, block_table=context.block_tables, 
-                                        softmax_scale=self.scale, causal=True)
-        return o
+    def forward(self, q, k, v):
+        if self.backend == "native":
+            from nanovllm.layers.native_attention import Attention as NativeAttention
+            return NativeAttention.forward(self, q, k, v)
+        ctx = get_context()
+        shape = (-1, self.num_kv_heads, self.head_dim)
+        kc, vc = self.k_cache.view(shape), self.v_cache.view(shape)
+        # Padding lanes write only to reserved scratch slots, never a live page.
+        kc.index_copy_(0, ctx.slot_mapping.long(), k)
+        vc.index_copy_(0, ctx.slot_mapping.long(), v)
+        if ctx.is_prefill:
+            out = []
+            qends, kends = ctx.cu_seqlens_q.tolist(), ctx.cu_seqlens_k.tolist()
+            for i, (start, end) in enumerate(zip(qends, qends[1:])):
+                length = kends[i + 1] - kends[i]
+                pos = torch.arange(length, device=q.device)
+                slots = ctx.block_tables[i, pos // self.k_cache.size(1)].long() * self.k_cache.size(1) + pos % self.k_cache.size(1)
+                keys, vals = kc[slots], vc[slots]
+                mask = pos[None, :] <= torch.arange(length - (end - start), length, device=q.device)[:, None]
+                out.append(self.attend(q[start:end].transpose(0, 1), keys.transpose(0, 1), vals.transpose(0, 1), mask).transpose(0, 1))
+            return torch.cat(out)
+        pos = torch.arange(ctx.block_tables.size(1) * self.k_cache.size(1), device=q.device)
+        slots = ctx.block_tables[:, pos // self.k_cache.size(1)].long() * self.k_cache.size(1) + pos % self.k_cache.size(1)
+        keys, vals = kc[slots], vc[slots]
+        mask = (pos[None, :] < ctx.context_lens[:, None])[:, None, None, :]
+        return self.attend(q.unsqueeze(2), keys.transpose(1, 2), vals.transpose(1, 2), mask).squeeze(2)
+
+    def attend(self, q, k, v, mask):
+        k = k.repeat_interleave(self.num_heads // self.num_kv_heads, dim=-3)
+        v = v.repeat_interleave(self.num_heads // self.num_kv_heads, dim=-3)
+        return F.scaled_dot_product_attention(q, k, v, attn_mask=mask, scale=self.scale)

@@ -1,120 +1,135 @@
 from collections import deque
-import xxhash
-import numpy as np
+from dataclasses import dataclass, field
+from hashlib import blake2b
 
 from nanovllm.engine.sequence import Sequence
 
 
-class Block:
+@dataclass(eq=False)
+class RadixNode:
+    parent: "RadixNode | None" = None
+    tokens: tuple[int, ...] = ()
+    block_id: int = -1
+    children: dict = field(default_factory=dict)
+    touched: int = 0
 
+
+class Block:
     def __init__(self, block_id):
         self.block_id = block_id
         self.ref_count = 0
-        self.hash = -1
-        self.token_ids = []
-
-    def update(self, hash: int, token_ids: list[int]):
-        self.hash = hash
-        self.token_ids = token_ids
-
-    def reset(self):
-        self.ref_count = 1
-        self.hash = -1
-        self.token_ids = []
+        self.node = None
 
 
 class BlockManager:
-
     def __init__(self, num_blocks: int, block_size: int):
         self.block_size = block_size
-        self.blocks: list[Block] = [Block(i) for i in range(num_blocks)]
-        self.hash_to_block_id: dict[int, int] = dict()
-        self.free_block_ids: deque[int] = deque(range(num_blocks))
-        self.used_block_ids: set[int] = set()
+        self.blocks = [Block(i) for i in range(num_blocks)]
+        self.free_block_ids = deque(range(num_blocks))
+        self.used_block_ids = set()
+        self.root = RadixNode()
+        self.clock = self.hits = self.evictions = 0
 
     @classmethod
-    def compute_hash(cls, token_ids: list[int], prefix: int = -1):
-        h = xxhash.xxh64()
-        if prefix != -1:
-            h.update(prefix.to_bytes(8, "little"))
-        h.update(np.array(token_ids).tobytes())
-        return h.intdigest()
+    def compute_hash(cls, token_ids, prefix=-1):
+        return int.from_bytes(blake2b(repr((prefix, token_ids)).encode(), digest_size=8).digest(), "little")
 
-    def _allocate_block(self) -> int:
+    def _touch(self, node):
+        self.clock += 1
+        node.touched = self.clock
+
+    def _allocate_block(self):
+        if not self.free_block_ids:
+            leaves = [b.node for b in self.blocks if b.ref_count == 0 and b.node is not None and not b.node.children]
+            if not leaves:
+                raise RuntimeError("no evictable KV page")
+            node = min(leaves, key=lambda n: n.touched)
+            del node.parent.children[node.tokens]
+            self.blocks[node.block_id].node = None
+            self.free_block_ids.append(node.block_id)
+            self.evictions += 1
         block_id = self.free_block_ids.popleft()
         block = self.blocks[block_id]
-        assert block.ref_count == 0
-        if block.hash != -1 and self.hash_to_block_id.get(block.hash) == block_id:
-            del self.hash_to_block_id[block.hash]
-        block.reset()
+        assert block.ref_count == 0 and block.node is None
+        block.ref_count = 1
         self.used_block_ids.add(block_id)
         return block_id
 
-    def _deallocate_block(self, block_id: int):
-        assert self.blocks[block_id].ref_count == 0
-        self.used_block_ids.remove(block_id)
-        self.free_block_ids.append(block_id)
-
-    def can_allocate(self, seq: Sequence) -> int:
-        h = -1
-        num_cached_blocks = 0
-        num_new_blocks = seq.num_blocks
-        for i in range(seq.num_blocks - 1):
-            token_ids = seq.block(i)
-            h = self.compute_hash(token_ids, h)
-            block_id = self.hash_to_block_id.get(h, -1)
-            if block_id == -1 or self.blocks[block_id].token_ids != token_ids:
-                break
-            num_cached_blocks += 1
-            if block_id in self.used_block_ids:
-                num_new_blocks -= 1
-        if len(self.free_block_ids) < num_new_blocks:
-            return -1
-        return num_cached_blocks
-
-    def allocate(self, seq: Sequence, num_cached_blocks: int):
-        assert not seq.block_table
-        h = -1
-        for i in range(num_cached_blocks):
-            token_ids = seq.block(i)
-            h = self.compute_hash(token_ids, h)
-            block_id = self.hash_to_block_id[h]
-            block = self.blocks[block_id]
-            if block_id in self.used_block_ids:
-                block.ref_count += 1
+    def _release(self, block_id):
+        block = self.blocks[block_id]
+        assert block.ref_count > 0
+        block.ref_count -= 1
+        if not block.ref_count:
+            self.used_block_ids.remove(block_id)
+            if block.node is None:
+                self.free_block_ids.append(block_id)
             else:
-                block.ref_count = 1
-                self.free_block_ids.remove(block_id)
-                self.used_block_ids.add(block_id)
-            seq.block_table.append(block_id)
-        for i in range(num_cached_blocks, seq.num_blocks):
+                self._touch(block.node)
+
+    def _prefix(self, seq):
+        node = self.root
+        matches = []
+        # Keep one prompt token to compute next-token logits.
+        for i in range((len(seq) - 1) // self.block_size):
+            node = node.children.get(tuple(seq.block(i)))
+            if node is None:
+                break
+            matches.append(node)
+        return matches
+
+    def can_allocate(self, seq: Sequence):
+        matches = self._prefix(seq)
+        available = sum(b.ref_count == 0 for b in self.blocks)
+        needed = seq.num_blocks - sum(self.blocks[n.block_id].ref_count > 0 for n in matches)
+        return len(matches) if available >= needed else -1
+
+    def allocate(self, seq, num_cached_blocks):
+        assert not seq.block_table
+        for node in self._prefix(seq)[:num_cached_blocks]:
+            block = self.blocks[node.block_id]
+            block.ref_count += 1
+            self.used_block_ids.add(block.block_id)
+            self._touch(node)
+            seq.block_table.append(block.block_id)
+            self.hits += 1
+        for _ in range(num_cached_blocks, seq.num_blocks):
             seq.block_table.append(self._allocate_block())
         seq.num_cached_tokens = num_cached_blocks * self.block_size
 
-    def deallocate(self, seq: Sequence):
+    def deallocate(self, seq):
         for block_id in reversed(seq.block_table):
-            block = self.blocks[block_id]
-            block.ref_count -= 1
-            if block.ref_count == 0:
-                self._deallocate_block(block_id)
-        seq.num_cached_tokens = 0
+            self._release(block_id)
         seq.block_table.clear()
+        seq.num_cached_tokens = 0
 
-    def can_append(self, seq: Sequence) -> bool:
-        return len(self.free_block_ids) >= (len(seq) % self.block_size == 1)
+    def can_append(self, seq):
+        return len(seq.block_table) >= seq.num_blocks or any(b.ref_count == 0 for b in self.blocks)
 
-    def may_append(self, seq: Sequence):
-        if len(seq) % self.block_size == 1:
+    def may_append(self, seq):
+        while len(seq.block_table) < seq.num_blocks:
             seq.block_table.append(self._allocate_block())
 
-    def hash_blocks(self, seq: Sequence):
-        start = seq.num_cached_tokens // self.block_size
+    def hash_blocks(self, seq):
         end = (seq.num_cached_tokens + seq.num_scheduled_tokens) // self.block_size
-        if start == end: return
-        h = self.blocks[seq.block_table[start - 1]].hash if start > 0 else -1
-        for i in range(start, end):
+        node = self.root
+        for i in range(end):
+            tokens = tuple(seq.block(i))
             block = self.blocks[seq.block_table[i]]
-            token_ids = seq.block(i)
-            h = self.compute_hash(token_ids, h)
-            block.update(h, token_ids)
-            self.hash_to_block_id[h] = block.block_id
+            child = node.children.get(tokens)
+            if child is None:
+                child = RadixNode(node, tokens, block.block_id)
+                node.children[tokens] = child
+                block.node = child
+            elif child.block_id != block.block_id:
+                self.blocks[child.block_id].ref_count += 1
+                self.used_block_ids.add(child.block_id)
+                self._release(block.block_id)
+                seq.block_table[i] = child.block_id
+            self._touch(child)
+            node = child
+
+    def stats(self):
+        active = sum(b.ref_count > 0 for b in self.blocks)
+        cached = sum(b.ref_count == 0 and b.node is not None for b in self.blocks)
+        return dict(total_pages=len(self.blocks), active_pages=active, cached_pages=cached,
+                    free_pages=len(self.free_block_ids), prefix_hits=self.hits, evictions=self.evictions)

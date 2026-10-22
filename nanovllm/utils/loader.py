@@ -11,7 +11,15 @@ def default_weight_loader(param: nn.Parameter, loaded_weight: torch.Tensor):
 
 def load_model(model: nn.Module, path: str):
     packed_modules_mapping = getattr(model, "packed_modules_mapping", {})
-    for file in glob(os.path.join(path, "*.safetensors")):
+    files = sorted(glob(os.path.join(path, "*.safetensors")))
+    if not files:
+        raise ValueError("checkpoint contains no safetensors")
+    expected = set()
+    for name, param in model.named_parameters():
+        shards = [shard for target, shard in packed_modules_mapping.values() if target in name]
+        expected.update((name, shard) for shard in shards or [None])
+    loaded = set()
+    for file in files:
         with safe_open(file, "pt", "cpu") as f:
             for weight_name in f.keys():
                 for k in packed_modules_mapping:
@@ -21,8 +29,13 @@ def load_model(model: nn.Module, path: str):
                         param = model.get_parameter(param_name)
                         weight_loader = getattr(param, "weight_loader")
                         weight_loader(param, f.get_tensor(weight_name), shard_id)
+                        loaded.add((param_name, shard_id))
                         break
                 else:
                     param = model.get_parameter(weight_name)
                     weight_loader = getattr(param, "weight_loader", default_weight_loader)
                     weight_loader(param, f.get_tensor(weight_name))
+                    loaded.add((weight_name, None))
+    missing = expected - loaded
+    if missing:
+        raise ValueError(f"incomplete safetensors checkpoint: {sorted(map(str, missing))[:8]}")
