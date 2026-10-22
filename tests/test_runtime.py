@@ -230,6 +230,32 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("numeric IPv4 loopback", result.stderr)
 
+    def test_replay_telemetry_stays_bounded(self):
+        from nanovllm.engine.torch_runner import TorchRunner
+        from nanovllm.utils.context import set_context
+        runner = TorchRunner.__new__(TorchRunner)
+        runner.graph_bs = [1, 2, 4]
+        runner.graphs = {4: SimpleNamespace(replay=lambda: None)}
+        runner.graph_replays = 0
+        runner.replay_lanes = set()
+        runner.scratch_page = 9
+        runner.scratch_slots = torch.arange(4) + 36
+        runner.graph_vars = dict(ids=torch.zeros(4, dtype=torch.int64),
+            positions=torch.zeros(4, dtype=torch.int64), lengths=torch.zeros(4, dtype=torch.int64),
+            tables=torch.zeros(4, 2, dtype=torch.int64), slots=torch.zeros(4, dtype=torch.int64),
+            outputs=torch.zeros(4, 8))
+        runner.model = SimpleNamespace(compute_logits=lambda hidden: hidden)
+        def prepare(seqs, prefill):
+            set_context(False, slot_mapping=torch.arange(3), context_lens=torch.ones(3, dtype=torch.int64), block_tables=torch.zeros(3, 2, dtype=torch.int64))
+            return torch.ones(3, dtype=torch.int64), torch.zeros(3, dtype=torch.int64)
+        runner.prepare = prepare
+        for _ in range(10000):
+            runner.logits([None] * 3, False)
+        self.assertEqual(runner.graph_replays, 10000)
+        self.assertIn((3, 4), runner.replay_lanes)
+        self.assertEqual(len(runner.replay_lanes), 1)
+        self.assertEqual(json.loads(json.dumps(sorted(runner.replay_lanes))), [[3, 4]])
+
     def test_instance_pages_validation_and_loader(self):
         legacy = SimpleNamespace(model_type="qwen3", max_position_embeddings=128, torch_dtype=torch.float16)
         with patch("nanovllm.config.AutoConfig.from_pretrained", return_value=legacy):

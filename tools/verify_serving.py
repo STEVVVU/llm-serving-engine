@@ -56,7 +56,7 @@ def offline(model_path, device):
         stats = graph.scheduler.block_manager.stats()
         assert stats["active_pages"] == 0 and stats["evictions"] > 0 and stats["prefix_hits"] > 0
         assert stats["total_pages"] == stats["cached_pages"] + stats["free_pages"]
-        lanes = getattr(graph.model_runner, "replay_lanes", [])
+        lanes = sorted(getattr(graph.model_runner, "replay_lanes", set()))
         if device == "cuda":
             assert (3, 4) in lanes, lanes
             assert graph.model_runner.graph_replays > 0

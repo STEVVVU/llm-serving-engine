@@ -40,7 +40,7 @@ class TorchRunner:
             self.sampler.forward = torch.compile(self.sampler.forward)
         self.graphs = {}
         self.graph_replays = 0
-        self.replay_lanes = []
+        self.replay_lanes = set()
         if self.device.type == "cuda" and not config.enforce_eager:
             self.capture_cudagraph()
 
@@ -86,7 +86,7 @@ class TorchRunner:
                 state["slots"][:bs].copy_(ctx.slot_mapping)
                 self.graphs[bucket].replay()
                 self.graph_replays += 1
-                self.replay_lanes.append((bs, bucket))
+                self.replay_lanes.add((bs, bucket))
                 return self.model.compute_logits(state["outputs"][:bs])
             return self.model.compute_logits(self.model(ids, positions))
         finally:
