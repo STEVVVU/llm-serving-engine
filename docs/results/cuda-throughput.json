@@ -1,0 +1,70 @@
+{
+  "workload": {
+    "model": "Qwen/Qwen3-0.6B@c1899de289a04d12100db370d81485cdf75e47ca",
+    "device": "cuda",
+    "eager": false,
+    "compile": false,
+    "requests": 8,
+    "concurrency": 3,
+    "input_length": 24,
+    "output_length": 8,
+    "repeats": 5,
+    "output": "evidence\\cuda-throughput.json"
+  },
+  "torch": "2.11.0+cu128",
+  "gpu": "NVIDIA GeForce RTX 5080 Laptop GPU",
+  "cache_policy": "persistent radix cache, unmeasured initial concurrency-sized warmup",
+  "measurement": "end-to-end offline generate, tokenization excluded for token-ID prompts, sampling and scheduler included",
+  "runs": [
+    {
+      "seconds": 0.4062904000020353,
+      "output_tokens": 64,
+      "requests": 8,
+      "errors": 0,
+      "tokens_per_second": 157.5227965014172
+    },
+    {
+      "seconds": 0.4645321999996668,
+      "output_tokens": 64,
+      "requests": 8,
+      "errors": 0,
+      "tokens_per_second": 137.7730112143914
+    },
+    {
+      "seconds": 0.46691289999580476,
+      "output_tokens": 64,
+      "requests": 8,
+      "errors": 0,
+      "tokens_per_second": 137.07053285650287
+    },
+    {
+      "seconds": 0.44839970000612084,
+      "output_tokens": 64,
+      "requests": 8,
+      "errors": 0,
+      "tokens_per_second": 142.7298011107643
+    },
+    {
+      "seconds": 0.4792861999885645,
+      "output_tokens": 64,
+      "requests": 8,
+      "errors": 0,
+      "tokens_per_second": 133.53190640900365
+    }
+  ],
+  "median_tokens_per_second": 137.7730112143914,
+  "range_tokens_per_second": [
+    133.53190640900365,
+    157.5227965014172
+  ],
+  "pages": {
+    "total_pages": 24,
+    "active_pages": 0,
+    "cached_pages": 22,
+    "free_pages": 2,
+    "prefix_hits": 15,
+    "evictions": 258
+  },
+  "graph_replays": 119,
+  "claim": "synthetic local sample only; no baseline comparison or course performance claim"
+}

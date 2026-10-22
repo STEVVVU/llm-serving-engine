@@ -1,5 +1,7 @@
 name: CPU serving verification
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   cpu:
     runs-on: ubuntu-latest
@@ -17,3 +19,9 @@ jobs:
       - run: python -m pip install -e . -c requirements-verified.txt
       - run: python -m unittest discover -s tests -v
       - run: python tools/verify_serving.py --device cpu --output evidence/cpu-runtime.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cpu-serving-evidence
+          path: evidence/cpu-runtime.json
+          if-no-files-found: warn

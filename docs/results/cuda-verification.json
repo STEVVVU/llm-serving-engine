@@ -1,0 +1,667 @@
+{
+  "device": "cuda",
+  "torch": "2.11.0+cu128",
+  "cuda": "12.8",
+  "gpu": "NVIDIA GeForce RTX 5080 Laptop GPU",
+  "model": "Qwen/Qwen3-0.6B@c1899de289a04d12100db370d81485cdf75e47ca",
+  "offline": {
+    "prompts": [
+      [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      [
+        8,
+        9,
+        10,
+        8,
+        9,
+        10,
+        8,
+        9,
+        10
+      ],
+      [
+        11,
+        12,
+        13,
+        11,
+        12,
+        13,
+        11,
+        12,
+        13,
+        11,
+        12,
+        13,
+        14
+      ]
+    ],
+    "greedy_token_ids": [
+      [
+        353,
+        1018,
+        5,
+        6,
+        320,
+        873,
+        353,
+        1018
+      ],
+      [
+        9,
+        10,
+        9,
+        10,
+        9,
+        10,
+        9,
+        10
+      ],
+      [
+        82,
+        198,
+        262,
+        481,
+        659,
+        11,
+        2572,
+        2572
+      ]
+    ],
+    "independent_hf_parity": true,
+    "eager_graph_parity": true,
+    "pages": {
+      "total_pages": 24,
+      "active_pages": 0,
+      "cached_pages": 23,
+      "free_pages": 1,
+      "prefix_hits": 3,
+      "evictions": 39
+    },
+    "graph_lanes": [
+      [
+        3,
+        4
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        3,
+        4
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ]
+    ],
+    "graph_replays": 98
+  },
+  "http": {
+    "command": [
+      "python",
+      "-u",
+      "-m",
+      "nanovllm.server",
+      "--model",
+      "Qwen/Qwen3-0.6B@c1899de289a04d12100db370d81485cdf75e47ca",
+      "--device",
+      "cuda",
+      "--port",
+      "53211",
+      "--page-size",
+      "4",
+      "--pages",
+      "40",
+      "--max-model-len",
+      "128",
+      "--token-budget",
+      "16",
+      "--max-running",
+      "4",
+      "--client-buffer",
+      "64",
+      "--deadline",
+      "30"
+    ],
+    "pid": 44036,
+    "log": "evidence\\cuda-runtime.server.log",
+    "doctor": {
+      "accepted": 0,
+      "completed": 0,
+      "cancelled": 0,
+      "failed": 0,
+      "total_pages": 40,
+      "active_pages": 0,
+      "cached_pages": 0,
+      "free_pages": 40,
+      "prefix_hits": 0,
+      "evictions": 0,
+      "live_requests": 0,
+      "pending_commands": 0,
+      "waiting": 0,
+      "running": 0,
+      "graph_replays": 0
+    },
+    "concurrent_requests": [
+      {
+        "prompt": [
+          3,
+          4,
+          5
+        ],
+        "max_tokens": 6,
+        "temperature": 0,
+        "ignore_eos": true
+      },
+      {
+        "prompt": [
+          4,
+          4,
+          5,
+          4,
+          4,
+          5
+        ],
+        "max_tokens": 6,
+        "temperature": 0,
+        "ignore_eos": true
+      },
+      {
+        "prompt": [
+          5,
+          4,
+          5,
+          5,
+          4,
+          5,
+          5,
+          4,
+          5
+        ],
+        "max_tokens": 6,
+        "temperature": 0,
+        "ignore_eos": true
+      }
+    ],
+    "concurrent_responses": [
+      [
+        200,
+        {
+          "id": "c4552019783a416c9e1a84d87ee84d55",
+          "choices": [
+            {
+              "text": "$ is a number that is",
+              "token_ids": [
+                3,
+                374,
+                264,
+                1372,
+                429,
+                374
+              ],
+              "finish_reason": "stop"
+            }
+          ]
+        }
+      ],
+      [
+        200,
+        {
+          "id": "ba1d7c0222454168b62b085d437098bd",
+          "choices": [
+            {
+              "text": "%&%&%&",
+              "token_ids": [
+                4,
+                5,
+                4,
+                5,
+                4,
+                5
+              ],
+              "finish_reason": "stop"
+            }
+          ]
+        }
+      ],
+      [
+        200,
+        {
+          "id": "8ecbaca88e1147da9ef888d22f1a9033",
+          "choices": [
+            {
+              "text": "%&%&%&",
+              "token_ids": [
+                4,
+                5,
+                4,
+                5,
+                4,
+                5
+              ],
+              "finish_reason": "stop"
+            }
+          ]
+        }
+      ]
+    ],
+    "sse": "data: {\"token_ids\": [320], \"text\": \" (\", \"request_id\": \"2c4b8c1442bd498f9c68bcf33af3491e\"}\n\ndata: {\"token_ids\": [2140], \"text\": \"())\", \"request_id\": \"2c4b8c1442bd498f9c68bcf33af3491e\"}\n\ndata: {\"token_ids\": [6], \"text\": \"'\", \"request_id\": \"2c4b8c1442bd498f9c68bcf33af3491e\"}\n\ndata: {\"token_ids\": [374], \"text\": \" is\", \"request_id\": \"2c4b8c1442bd498f9c68bcf33af3491e\"}\n\ndata: {\"token_ids\": [264], \"text\": \" a\", \"request_id\": \"2c4b8c1442bd498f9c68bcf33af3491e\"}\n\ndata: {\"done\": true, \"token_ids\": [320, 2140, 6, 374, 264, 2697], \"text\": \" (())' is a valid\", \"request_id\": \"2c4b8c1442bd498f9c68bcf33af3491e\"}\n\ndata: [DONE]\n\n",
+    "cancel": {
+      "first_event": {
+        "token_ids": [
+          3
+        ],
+        "text": "$",
+        "request_id": "b29eb3587e0742c4a8684715f11c08fb"
+      },
+      "acknowledgement": {
+        "cancellation_requested": true
+      }
+    },
+    "final_metrics": {
+      "accepted": 6,
+      "completed": 5,
+      "cancelled": 1,
+      "failed": 0,
+      "total_pages": 40,
+      "active_pages": 0,
+      "cached_pages": 11,
+      "free_pages": 29,
+      "prefix_hits": 0,
+      "evictions": 0,
+      "live_requests": 0,
+      "pending_commands": 0,
+      "waiting": 0,
+      "running": 0,
+      "graph_replays": 13
+    },
+    "cleanup": {
+      "child_exited": true,
+      "returncode": 1
+    }
+  },
+  "passed": true
+}
