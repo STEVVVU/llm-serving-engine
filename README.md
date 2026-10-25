@@ -13,6 +13,340 @@ An MIT-licensed extension of [GeeeekExplorer/nano-vllm](https://github.com/Geeee
 
 ## Architecture and execution guide
 
+<!-- execution-flow:start -->
+### Execution flow
+
+Start with the primary path, then expand a detailed workflow. Select a numbered node to see its operation, implementation techniques, and source. Solid arrows show the named control, data, or lifecycle handoff; dotted arrows show error paths. Separate entry points are named in each workflow.
+
+<a id="review-walkthrough"></a>
+
+#### Walk through one concrete example
+
+Send a bounded HTTP generation request for a locally installed supported Qwen3 model to the portable PyTorch backend.
+
+**Trace.** [Bounded HTTP admission](#flow-step-http-admit) → [Owner processes commands and ticks engine](#flow-step-owner-loop) → [Tokenize and reserve bounded request](#flow-step-request-admit) → [Choose chunked prefill or rotating decode](#flow-step-schedule) → [Prepare packed inputs and run portable attention](#flow-step-portable-run) → [Replay captured CUDA graph for decode](#flow-step-decode-graph) → [Append token, cache full blocks and release finished pages](#flow-step-postprocess).
+
+**Result and boundary.** An admitted sequence reuses exact cached prefix pages where available, runs portable attention, and advances or releases KV page references as it generates; queue saturation returns 429, and native CUDA is a separate unexecuted source-described mode.
+
+<details>
+<summary>Implementation decisions to explain</summary>
+
+**Why reserve the maximum KV footprint before waiting for admission?** The engine checks whether the request's bounded context can fit before it starts consuming shared page capacity; this gives predictable admission bounds but can reject a request whose eventual output would be shorter.
+
+[Maximum-footprint reservation](#technique-maximum-footprint-reservation) · [Reference-counted KV page sharing](#technique-kv-page-reference-counting).
+
+**Why cache only exact full token blocks in the radix prefix cache?** Exact block matches make page reuse correspond to identical token prefixes; partially matching tails do not qualify and must be allocated or computed normally.
+
+[Exact radix prefix lookup](#technique-exact-radix-prefix-cache).
+
+</details>
+
+#### Primary execution flow
+
+HTTP request enters bounded queues, is admitted by the single engine owner, scheduled through portable execution, and returned as events; offline generate shares engine/scheduler but bypasses HTTP.
+
+```mermaid
+flowchart TD
+    n1["1. Bounded HTTP admission"]
+    click n1 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-http-admit" "Open step, techniques, and source" _top
+    n2["2. Owner processes commands and<br/>ticks engine"]
+    click n2 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-owner-loop" "Open step, techniques, and source" _top
+    n3["3. Validate local model and load<br/>weights"]
+    click n3 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-model-boundary" "Open step, techniques, and source" _top
+    n4["4. Tokenize and reserve bounded<br/>request"]
+    click n4 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-request-admit" "Open step, techniques, and source" _top
+    n5["5. Reuse exact prefix pages or<br/>allocate pages"]
+    click n5 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-prefix-allocate" "Open step, techniques, and source" _top
+    n6["6. Choose chunked prefill or<br/>rotating decode"]
+    click n6 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-schedule" "Open step, techniques, and source" _top
+    n7["7. Prepare packed inputs and run<br/>portable attention"]
+    click n7 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-portable-run" "Open step, techniques, and source" _top
+    n8["8. Replay captured CUDA graph<br/>for decode"]
+    click n8 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-decode-graph" "Open step, techniques, and source" _top
+    n10["10. Append token, cache full<br/>blocks and release finished<br/>pages"]
+    click n10 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-postprocess" "Open step, techniques, and source" _top
+    n11["11. Stream bounded events and<br/>honor cancellation"]
+    click n11 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-stream-cancel" "Open step, techniques, and source" _top
+    n1 -->|"queued command"| n2
+    n2 -->|"owner admits client"| n4
+    n4 -->|"waiting sequence considered by next<br/>engine step"| n6
+    n6 -->|"prefill candidate fits budgets"| n5
+    n6 -->|"portable backend selected"| n7
+    n7 -->|"decode CUDA branch"| n8
+    n8 -->|"sampled token IDs"| n10
+    n7 -->|"sampled token IDs"| n10
+    n10 -->|"completion/token event"| n11
+    n2 -->|"cancel/deadline/disconnect"| n11
+    n3 -->|"initialized engine"| n4
+    n5 -->|"allocation succeeds; include prefill<br/>chunk"| n6
+```
+
+**Detailed workflows.** [HTTP portable request lifecycle](#flow-workflow-http-portable-lifecycle) · [Optional native CUDA and tensor parallel mode](#flow-workflow-native-cuda-mode) · [Offline portable generation](#flow-workflow-offline-portable-generation).
+
+<a id="flow-workflow-http-portable-lifecycle"></a>
+
+<details>
+<summary>HTTP portable request lifecycle</summary>
+
+HTTP entry, serialized engine ownership, bounded scheduling, portable model execution, event streaming and cancellation.
+
+```mermaid
+flowchart TD
+    n1["1. Bounded HTTP admission"]
+    click n1 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-http-admit" "Open step, techniques, and source" _top
+    n2["2. Owner processes commands and<br/>ticks engine"]
+    click n2 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-owner-loop" "Open step, techniques, and source" _top
+    n3["3. Validate local model and load<br/>weights"]
+    click n3 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-model-boundary" "Open step, techniques, and source" _top
+    n4["4. Tokenize and reserve bounded<br/>request"]
+    click n4 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-request-admit" "Open step, techniques, and source" _top
+    n5["5. Reuse exact prefix pages or<br/>allocate pages"]
+    click n5 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-prefix-allocate" "Open step, techniques, and source" _top
+    n6["6. Choose chunked prefill or<br/>rotating decode"]
+    click n6 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-schedule" "Open step, techniques, and source" _top
+    n7["7. Prepare packed inputs and run<br/>portable attention"]
+    click n7 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-portable-run" "Open step, techniques, and source" _top
+    n8["8. Replay captured CUDA graph<br/>for decode"]
+    click n8 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-decode-graph" "Open step, techniques, and source" _top
+    n10["10. Append token, cache full<br/>blocks and release finished<br/>pages"]
+    click n10 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-postprocess" "Open step, techniques, and source" _top
+    n11["11. Stream bounded events and<br/>honor cancellation"]
+    click n11 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-stream-cancel" "Open step, techniques, and source" _top
+    n1 -->|"queued command"| n2
+    n2 -->|"owner admits client"| n4
+    n4 -->|"waiting sequence considered by next<br/>engine step"| n6
+    n6 -->|"prefill candidate fits budgets"| n5
+    n6 -->|"portable backend selected"| n7
+    n7 -->|"decode CUDA branch"| n8
+    n8 -->|"sampled token IDs"| n10
+    n7 -->|"sampled token IDs"| n10
+    n10 -->|"completion/token event"| n11
+    n2 -->|"cancel/deadline/disconnect"| n11
+    n3 -->|"initialized engine"| n4
+    n5 -->|"allocation succeeds; include prefill<br/>chunk"| n6
+```
+
+</details>
+
+<a id="flow-workflow-native-cuda-mode"></a>
+
+<details>
+<summary>Optional native CUDA and tensor parallel mode</summary>
+
+Native backend has no runtime fallback to Torch; rank workers use NCCL and shared-memory command dispatch. Described from source, not executed in the recorded environment.
+
+```mermaid
+flowchart TD
+    n3["3. Validate local model and load<br/>weights"]
+    click n3 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-model-boundary" "Open step, techniques, and source" _top
+    n4["4. Tokenize and reserve bounded<br/>request"]
+    click n4 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-request-admit" "Open step, techniques, and source" _top
+    n5["5. Reuse exact prefix pages or<br/>allocate pages"]
+    click n5 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-prefix-allocate" "Open step, techniques, and source" _top
+    n6["6. Choose chunked prefill or<br/>rotating decode"]
+    click n6 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-schedule" "Open step, techniques, and source" _top
+    n9["9. Optional native CUDA rank<br/>dispatch"]
+    click n9 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-native-run" "Open step, techniques, and source" _top
+    n10["10. Append token, cache full<br/>blocks and release finished<br/>pages"]
+    click n10 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-postprocess" "Open step, techniques, and source" _top
+    n11["11. Stream bounded events and<br/>honor cancellation"]
+    click n11 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-stream-cancel" "Open step, techniques, and source" _top
+    n3 -->|"backend=native"| n9
+    n4 -->|"waiting sequence considered by next<br/>engine step"| n6
+    n6 -->|"prefill candidate fits budgets"| n5
+    n6 -->|"native backend selected"| n9
+    n9 -->|"sampled token IDs"| n10
+    n10 -->|"completion/token event"| n11
+    n5 -->|"allocation succeeds; include prefill<br/>chunk"| n6
+```
+
+</details>
+
+<a id="flow-workflow-offline-portable-generation"></a>
+
+<details>
+<summary>Offline portable generation</summary>
+
+Independent LLMEngine.generate entrypoint uses shared admission, scheduling and runner paths without HTTP event delivery. Native backend uses the separately documented native-run branch.
+
+```mermaid
+flowchart TD
+    n12["12. Generate offline and collect<br/>completed outputs"]
+    click n12 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-offline-generate" "Open step, techniques, and source" _top
+    n4["4. Tokenize and reserve bounded<br/>request"]
+    click n4 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-request-admit" "Open step, techniques, and source" _top
+    n6["6. Choose chunked prefill or<br/>rotating decode"]
+    click n6 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-schedule" "Open step, techniques, and source" _top
+    n5["5. Reuse exact prefix pages or<br/>allocate pages"]
+    click n5 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-prefix-allocate" "Open step, techniques, and source" _top
+    n7["7. Prepare packed inputs and run<br/>portable attention"]
+    click n7 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-portable-run" "Open step, techniques, and source" _top
+    n8["8. Replay captured CUDA graph<br/>for decode"]
+    click n8 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-decode-graph" "Open step, techniques, and source" _top
+    n10["10. Append token, cache full<br/>blocks and release finished<br/>pages"]
+    click n10 href "https://github.com/STEVVVU/llm-serving-engine#flow-step-postprocess" "Open step, techniques, and source" _top
+    n4 -->|"waiting sequence considered by next<br/>engine step"| n6
+    n6 -->|"prefill candidate fits budgets"| n5
+    n6 -->|"portable backend selected"| n7
+    n7 -->|"decode CUDA branch"| n8
+    n8 -->|"sampled token IDs"| n10
+    n7 -->|"sampled token IDs"| n10
+    n5 -->|"allocation succeeds; include prefill<br/>chunk"| n6
+    n12 -->|"pending capacity available"| n4
+    n10 -->|"step returns completed sequences"| n12
+```
+
+</details>
+
+#### Steps, techniques, and source
+
+These source traces cover the active scope below. They explain implementation behavior; benchmark results and their limits remain in the measurement sections.
+
+<a id="flow-step-http-admit"></a>
+
+##### 1. Bounded HTTP admission
+
+**Component.** Handler.do_POST. Validate route, bounded Content-Length and JSON shape, enqueue a client into a bounded command queue; queue saturation returns 429.
+
+**Techniques at this step.** [Bounded HTTP admission and streaming cancellation](#technique-bounded-http-streaming-and-cancellation).
+
+**Source.** [`nanovllm/server.py:192`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/server.py#L192). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-owner-loop"></a>
+
+##### 2. Owner processes commands and ticks engine
+
+**Component.** Service.run. A dedicated model-owner thread drains cancellations and commands, advances the engine, publishes events, and owns engine shutdown.
+
+**Techniques at this step.** [Single-owner engine command loop](#technique-single-owner-engine-command-loop).
+
+**Source.** [`nanovllm/server.py:120`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/server.py#L120). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-model-boundary"></a>
+
+##### 3. Validate local model and load weights
+
+**Component.** Config.__post_init__ / load_model. Configuration requires a local directory, supported Qwen3 shape and backend constraints; loader reads safetensors and rejects empty or incomplete checkpoints.
+
+**Techniques at this step.** [Local safetensors-only loading](#technique-local-safetensors-only-loading).
+
+**Source.** [`nanovllm/config.py:25`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/config.py#L25) · [`nanovllm/utils/loader.py:12`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/utils/loader.py#L12). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-request-admit"></a>
+
+##### 4. Tokenize and reserve bounded request
+
+**Component.** LLMEngine.add_request / Scheduler.add. Strings are locally tokenized and token IDs validated; pending count, context length and maximum KV footprint are checked before waiting admission.
+
+**Techniques at this step.** [Maximum-footprint reservation](#technique-maximum-footprint-reservation).
+
+**Source.** [`nanovllm/engine/scheduler.py:23`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/engine/scheduler.py#L23) · [`nanovllm/engine/llm_engine.py:51`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/engine/llm_engine.py#L51). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-prefix-allocate"></a>
+
+##### 5. Reuse exact prefix pages or allocate pages
+
+**Component.** BlockManager.can_allocate / allocate. Full cached token blocks are matched along radix children; matching pages gain references and remaining pages are allocated, failing admission when capacity is insufficient.
+
+**Techniques at this step.** [Exact radix prefix lookup](#technique-exact-radix-prefix-cache) · [Reference-counted KV page sharing](#technique-kv-page-reference-counting).
+
+**Source.** [`nanovllm/engine/block_manager.py:86`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/engine/block_manager.py#L86). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-schedule"></a>
+
+##### 6. Choose chunked prefill or rotating decode
+
+**Component.** Scheduler.schedule. Prefill receives remaining token budget in bounded chunks; when no prefill is scheduled, running sequences rotate through one-token decode slots.
+
+**Techniques at this step.** [Chunked prefill and rotating decode](#technique-chunked-prefill-and-rotating-decode).
+
+**Source.** [`nanovllm/engine/scheduler.py:51`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/engine/scheduler.py#L51). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-portable-run"></a>
+
+##### 7. Prepare packed inputs and run portable attention
+
+**Component.** TorchRunner.prepare / Attention.forward. TorchRunner packs token positions, slot mappings and block tables. Torch Attention writes KV pages, gathers cached keys and values, and calls scaled_dot_product_attention with causal prefill or length-bounded decode masks.
+
+**Techniques at this step.** [Packed prefill and paged SDPA](#technique-packed-prefill-and-paged-sdpa).
+
+**Source.** [`nanovllm/engine/torch_runner.py:50`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/engine/torch_runner.py#L50) · [`nanovllm/layers/attention.py:16`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/layers/attention.py#L16). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-decode-graph"></a>
+
+##### 8. Replay captured CUDA graph for decode
+
+**Component.** TorchRunner.logits / capture_cudagraph. On CUDA decode with captured graphs, inputs and context are copied into a batch bucket and replayed; other paths execute the model eagerly.
+
+**Techniques at this step.** [Decode CUDA graph replay](#technique-decode-cuda-graph-replay).
+
+**Source.** [`nanovllm/engine/torch_runner.py:69`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/engine/torch_runner.py#L69). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-native-run"></a>
+
+##### 9. Optional native CUDA rank dispatch
+
+**Component.** ModelRunner.call / run. Native configuration initializes NCCL ranks; rank zero broadcasts calls through shared memory/events and native attention writes paged KV then dispatches flash-attention kernels. This path is source-described and unexecuted in the recorded Windows environment.
+
+**Techniques at this step.** [Native paged attention and rank dispatch](#technique-native-paged-attention-and-rank-dispatch).
+
+**Source.** [`nanovllm/engine/model_runner.py:88`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/engine/model_runner.py#L88). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-postprocess"></a>
+
+##### 10. Append token, cache full blocks and release finished pages
+
+**Component.** Scheduler.postprocess / BlockManager.deallocate. Scheduled tokens are hashed into radix cache, sequence cache progress advances, and EOS/length completion releases page references; zero-reference cached leaves may later be evicted by LRU when allocation needs space.
+
+**Techniques at this step.** [LRU leaf eviction](#technique-lru-leaf-eviction) · [Reference-counted KV page sharing](#technique-kv-page-reference-counting).
+
+**Source.** [`nanovllm/engine/scheduler.py:86`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/engine/scheduler.py#L86). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-stream-cancel"></a>
+
+##### 11. Stream bounded events and honor cancellation
+
+**Component.** Service.tick / Handler.do_DELETE. New tokens enter bounded client event queues; overflow, disconnect, deadline or DELETE marks cancellation and owner-side terminal handling cancels the engine sequence and publishes a terminal event.
+
+**Techniques at this step.** [Bounded HTTP admission and streaming cancellation](#technique-bounded-http-streaming-and-cancellation).
+
+**Source.** [`nanovllm/server.py:41`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/server.py#L41). [Back to execution flow](#execution-flow).
+
+<a id="flow-step-offline-generate"></a>
+
+##### 12. Generate offline and collect completed outputs
+
+**Component.** LLMEngine.generate. The offline API fills the bounded pending queue, repeatedly calls step, collects finished sequence token IDs and decodes results in sequence-ID order. It bypasses HTTP commands, client event queues and cancellation transport.
+
+This is the public offline consumer loop for the shared scheduling and execution mechanisms.
+
+**Source.** [`nanovllm/engine/llm_engine.py:83`](https://github.com/STEVVVU/llm-serving-engine/blob/main/nanovllm/engine/llm_engine.py#L83). [Back to execution flow](#execution-flow).
+
+<details>
+<summary>Scope and subsystem coverage</summary>
+
+Portable Torch request lifecycle from local model validation and HTTP/offline admission through scheduler, KV pages, prefill/decode, streaming/cancellation and release; optional native CUDA/Tensor Parallel implementation source-described only.
+
+- **KV page ownership.** Allocation increments shared references; release decrements them. [Step 5](#flow-step-prefix-allocate), [Step 10](#flow-step-postprocess).
+- **Prefix cache.** Exact full-block lookup and LRU leaf eviction are included. [Step 5](#flow-step-prefix-allocate), [Step 10](#flow-step-postprocess).
+- **Request admission and scheduling.** Maximum footprint checks and bounded prefill/decode selection. [Step 4](#flow-step-request-admit), [Step 6](#flow-step-schedule).
+- **Portable model execution.** Packed prefill/paged attention and optional decode graph replay. [Step 7](#flow-step-portable-run), [Step 8](#flow-step-decode-graph).
+- **Native CUDA execution.** Optional source-described rank dispatch and paged attention; unexecuted. [Step 9](#flow-step-native-run).
+- **Engine and HTTP ownership.** Bounded HTTP queues and owner-thread command/tick lifecycle. [Step 1](#flow-step-http-admit), [Step 2](#flow-step-owner-loop), [Step 11](#flow-step-stream-cancel).
+- **Model boundary.** Local safetensors and supported configuration validation. [Step 3](#flow-step-model-boundary).
+
+Outside this flow audit:
+
+- `docs/upstream-README.md and examples`. Not active serving code.
+- `native execution runtime verification`. No supported native runtime execution in recorded Windows environment.
+
+</details>
+
+<!-- execution-flow:end -->
+
+<details>
+<summary>Subsystem technique index</summary>
+
 ### Subsystem map
 
 Select a subsystem in the diagram to open its techniques, tradeoffs, and code references. The numbered links provide the same navigation. This map groups components; the execution diagrams show their runtime flow.
@@ -47,6 +381,8 @@ flowchart LR
 The repository preserves nano-vLLM's offline API and Qwen3 path, with a portable Torch runner, paged KV allocation, bounded scheduling, and a loopback HTTP service. The optional Linux CUDA backend is a separate path. A [KV page](#kv-page) stores token attention state; the [radix cache](#radix-cache) reuses exact prefixes.
 
 The top-level diagram shows the engine boundary and its model runner.
+
+</details>
 
 <details>
 <summary>Expand flow diagram 1</summary>
