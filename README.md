@@ -8,6 +8,7 @@ An MIT-licensed extension of [GeeeekExplorer/nano-vllm](https://github.com/Geeee
 - [Offline API](#offline-api)
 - [Architecture and execution guide](#architecture-and-execution-guide)
 - [Mechanisms](#mechanisms)
+- [Implementation techniques](#implementation-techniques)
 - [Verify and measure](#verify-and-measure)
 
 ## Architecture and execution guide
@@ -167,6 +168,207 @@ Packed prefill runs projections and MLPs on real tokens only. Attention scatters
 The radix tree stores exact full-page token tuples under their exact parent. Complete processed generation pages enter the same tree as prompt pages. Sequence references pin pages. Eviction removes only unpinned LRU leaves. Cached pages remain reusable after completion, while active page references return to zero. Decode graphs use stable buffers and covering batch buckets. Padding writes to reserved scratch slots, and every replay replaces all page-table columns and inactive lane metadata.
 
 The original native attention kernels remain in `native_attention.py`. Install `.[native]` on a compatible Linux CUDA system and select `backend="native", device="cuda"` to use the upstream flash-attn, Triton and NCCL path. That backend and tensor parallelism have not been executed in this Windows validation. `compile=True` or `--compile` opts into PyTorch compilation of norm, rotary, activation and sampling regions. Compiler availability and compile performance remain unverified here.
+
+## Implementation techniques
+
+This guide covers the active portable Torch serving path and the optional inherited native CUDA and tensor-parallel path. Rationale is inferred from the current implementation; native-path behavior remains unverified on the documented Windows environment.
+
+| Subsystem | Techniques | Code |
+| --- | --- | --- |
+| KV page ownership | [Reference-counted page sharing](#technique-kv-page-reference-counting) | [`block_manager.py`](nanovllm/engine/block_manager.py), [`sequence.py`](nanovllm/engine/sequence.py) |
+| Prefix cache | [Exact radix prefix lookup](#technique-exact-radix-prefix-cache), [LRU leaf eviction](#technique-lru-leaf-eviction) | [`block_manager.py`](nanovllm/engine/block_manager.py) |
+| Request admission and scheduling | [Maximum-footprint reservation](#technique-maximum-footprint-reservation), [Chunked prefill and rotating decode](#technique-chunked-prefill-and-rotating-decode) | [`scheduler.py`](nanovllm/engine/scheduler.py), [`sequence.py`](nanovllm/engine/sequence.py) |
+| Portable model execution | [Packed prefill and paged SDPA](#technique-packed-prefill-and-paged-sdpa), [Decode CUDA graph replay](#technique-decode-cuda-graph-replay) | [`torch_runner.py`](nanovllm/engine/torch_runner.py), [`attention.py`](nanovllm/layers/attention.py) |
+| Native CUDA execution | [Native paged attention and rank dispatch](#technique-native-paged-attention-and-rank-dispatch) | [`model_runner.py`](nanovllm/engine/model_runner.py), [`native_attention.py`](nanovllm/layers/native_attention.py) |
+| Engine and HTTP ownership | [Single-owner engine command loop](#technique-single-owner-engine-command-loop), [Bounded HTTP admission and streaming cancellation](#technique-bounded-http-streaming-and-cancellation) | [`llm_engine.py`](nanovllm/engine/llm_engine.py), [`server.py`](nanovllm/server.py), [`context.py`](nanovllm/utils/context.py) |
+| Model boundary | [Local safetensors-only loading](#technique-local-safetensors-only-loading) | [`config.py`](nanovllm/config.py), [`loader.py`](nanovllm/utils/loader.py) |
+
+<a id="technique-kv-page-reference-counting"></a>
+
+<details>
+<summary>Reference-counted KV page sharing</summary>
+
+**Mechanism.** Each physical page tracks an active reference count and may point to a cached radix node. Allocation increments the count; sequence cleanup decrements it. A page with a cache node stays reusable after its last active owner releases it, while an uncached zero-count page returns to the free deque. The sequence stores physical IDs in its block table.
+
+**Example.** If a prompt matches cached page 3, `allocate` adds one reference to page 3 and records that ID in the new sequence table.
+
+**Why here.** This lets simultaneous or later requests share immutable completed prefix state while keeping active pages protected.
+
+**Tradeoffs.** Reference bookkeeping constrains eviction and release paths. The cache retains unpinned pages only until page-pool pressure needs them.
+
+**Code and ownership.** [`BlockManager.allocate` and `_release`](nanovllm/engine/block_manager.py#L58) and [`Sequence.block_table`](nanovllm/engine/sequence.py#L31). Extension.
+
+</details>
+
+<a id="technique-exact-radix-prefix-cache"></a>
+
+<details>
+<summary>Exact radix prefix lookup</summary>
+
+**Mechanism.** The radix tree indexes each complete token page as a tuple beneath its exact parent. `_prefix` walks token pages from the root and stops at the first missing child. `hash_blocks` inserts processed pages and, when an identical child already points to another physical page, redirects the sequence to that page and releases its duplicate.
+
+**Example.** Two prompts with identical first 16 token IDs can share that page when the configured page size is 16; a differing token breaks the walk.
+
+**Why here.** Exact full-page keys allow reusable prompt and generated state without approximate matching.
+
+**Tradeoffs.** Partial pages do not hit, and token IDs must align at page boundaries. No partial-page merge is implemented.
+
+**Code and ownership.** [`BlockManager._prefix` and `hash_blocks`](nanovllm/engine/block_manager.py#L69). Extension.
+
+</details>
+
+<a id="technique-lru-leaf-eviction"></a>
+
+<details>
+<summary>LRU leaf eviction</summary>
+
+**Mechanism.** Cache nodes receive an increasing logical touch counter on cache use or final active release. When the free deque is empty, allocation considers only pages with zero references whose nodes have no children, then removes the least recently touched leaf from its parent. A pinned page or internal radix node is not eligible.
+
+**Example.** Under pressure, a cold cached page at the end of one prefix branch can be detached while a shared ancestor and its descendants remain intact.
+
+**Why here.** Leaf-only removal preserves parent paths needed to reach other exact cached prefixes.
+
+**Tradeoffs.** A pool with no unpinned leaves raises `no evictable KV page`; this path does not block or preempt active sequences.
+
+**Code and ownership.** [`BlockManager._touch` and `_allocate_block`](nanovllm/engine/block_manager.py#L37). Extension.
+
+</details>
+
+<a id="technique-maximum-footprint-reservation"></a>
+
+<details>
+<summary>Maximum-footprint reservation</summary>
+
+**Mechanism.** Before admission, the scheduler checks context and total-pool limits. It computes pages for the prompt plus the maximum requested completion, sums those reservations for active sequences, and admits only if both the live-sequence cap and page budget fit. It then allocates the prompt's current pages.
+
+**Example.** A prompt that needs two pages and requests up to three more consumes a five-page admission reservation even though only prompt pages are allocated initially.
+
+**Why here.** The reservation lets admitted requests run to completion without KV preemption.
+
+**Tradeoffs.** Unused output allowance still reduces admission concurrency. Incremental allocation would need a defined recovery or preemption path.
+
+**Code and ownership.** [`Scheduler.add` and `_admit`](nanovllm/engine/scheduler.py#L23). Extension.
+
+</details>
+
+<a id="technique-chunked-prefill-and-rotating-decode"></a>
+
+<details>
+<summary>Chunked prefill and rotating decode</summary>
+
+**Mechanism.** The scheduler bounds each step by a token budget and live sequence cap. Prefill schedules only the remaining prompt chunk that fits, tracks cached and scheduled token counts, and moves the sequence to running after its prompt is processed. Eligible prefill and decode turns alternate; decode takes one token per request and rotates the running deque so budget-limited requests progress over successive steps.
+
+**Example.** With a budget of 32 and a 50-token uncached prompt, the first prefill step processes 32 tokens and a later step processes the remainder.
+
+**Why here.** Separate bounded steps let prompt processing coexist with incremental generation.
+
+**Tradeoffs.** Alternation is a simple policy, not latency-aware prioritization; a large prompt spans multiple steps.
+
+**Code and ownership.** [`Scheduler.schedule` and `postprocess`](nanovllm/engine/scheduler.py#L51), with token state in [`Sequence`](nanovllm/engine/sequence.py#L14). Extension.
+
+</details>
+
+<a id="technique-packed-prefill-and-paged-sdpa"></a>
+
+<details>
+<summary>Packed prefill and paged SDPA</summary>
+
+**Mechanism.** `TorchRunner.prepare` concatenates scheduled tokens and absolute positions for all sequences, while context arrays retain per-sequence query and key boundaries, page tables, and write slots. Portable attention writes K/V into physical pages, gathers each sequence's visible page slots, applies a causal mask using absolute query positions, and calls PyTorch scaled dot-product attention. Decode uses one input token per sequence and masks gathered keys by context length; grouped K/V heads are repeated to query-head count.
+
+**Example.** A two-token continuation after a cached 16-token prefix gets query positions 16 and 17, and its causal mask includes prefix keys plus only prior/current chunk tokens.
+
+**Why here.** The portable path reuses page tables while relying on Torch's SDPA operator.
+
+**Tradeoffs.** Gathering and head repetition create dense temporary operands; this is not a fused paged-attention kernel.
+
+**Code and ownership.** [`TorchRunner.prepare`](nanovllm/engine/torch_runner.py#L50), [`Attention.forward` and `attend`](nanovllm/layers/attention.py#L15). Extension.
+
+</details>
+
+<a id="technique-decode-cuda-graph-replay"></a>
+
+<details>
+<summary>Decode CUDA graph replay</summary>
+
+**Mechanism.** On CUDA when eager mode is disabled, the Torch runner captures decode graphs for selected batch-size buckets using stable input, context, output, and page-table buffers. At each decode call it selects the next covering bucket, clears buffers and scratch metadata, copies active lanes and full context, replays the graph, then computes logits for actual lanes only.
+
+**Example.** Three active sequences can use a captured four-lane bucket; the inactive lane reads the reserved scratch page and its outputs are discarded.
+
+**Why here.** Fixed shapes and storage support replay while sequence counts vary within captured buckets.
+
+**Tradeoffs.** Capture allocates and warms several buckets. Every replay must refresh lane metadata to avoid stale page-table state; graph use is disabled by eager mode.
+
+**Code and ownership.** [`TorchRunner.logits` and `capture_cudagraph`](nanovllm/engine/torch_runner.py#L69). Extension.
+
+</details>
+
+<a id="technique-native-paged-attention-and-rank-dispatch"></a>
+
+<details>
+<summary>Native paged attention and rank dispatch</summary>
+
+**Mechanism.** The optional native runner selects inherited FlashAttention varlen prefill and KV-cache decode. A Triton kernel writes K/V rows to slot-mapped cache positions and skips slot `-1`; decode passes context lengths and block tables to the cache-aware attention operator. For tensor parallelism, rank zero serializes method calls into shared memory and signals worker ranks, which execute the same runner method; rank zero returns sampled token IDs.
+
+**Example.** A prefill batch carries cumulative sequence offsets and block tables; a decode batch carries one context length and page table per sequence.
+
+**Why here.** This preserves nano-vLLM's optional Linux CUDA backend alongside the portable runner.
+
+**Tradeoffs.** It depends on flash-attn, Triton, NCCL and CUDA; these native and multi-rank paths were not executed in the documented Windows validation. Shared-memory dispatch serializes calls through rank zero.
+
+**Code and ownership.** [`ModelRunner.run` and `call`](nanovllm/engine/model_runner.py#L79), [`store_kvcache_kernel` and `Attention.forward`](nanovllm/layers/native_attention.py#L11). Inherited from nano-vLLM.
+
+</details>
+
+<a id="technique-single-owner-engine-command-loop"></a>
+
+<details>
+<summary>Single-owner engine command loop</summary>
+
+**Mechanism.** The HTTP `Service` starts one owner thread and sends it bounded command and cancellation queues. That thread alone calls engine admission, step, cancellation, and shutdown operations. The engine runners set process-global attention context before model execution and reset it afterward, so concurrent calls on one process would overwrite shared context.
+
+**Example.** A handler enqueues a `Client`; `Service.tick` admits it and runs one engine step before sending output events back through that client's queue.
+
+**Why here.** One owner keeps scheduler and attention state serialized while request handlers remain concurrent.
+
+**Tradeoffs.** Engine execution is a serial bottleneck for that service instance. Parallelism comes from batching sequences, not multiple engine-calling threads.
+
+**Code and ownership.** [`Service.run` and `tick`](nanovllm/server.py#L80), [`set_context` and `reset_context`](nanovllm/utils/context.py#L21), [`LLMEngine.step`](nanovllm/engine/llm_engine.py#L64). Extension.
+
+</details>
+
+<a id="technique-bounded-http-streaming-and-cancellation"></a>
+
+<details>
+<summary>Bounded HTTP admission and streaming cancellation</summary>
+
+**Mechanism.** The server caps concurrent client sockets with a semaphore, rejects bodies without a bounded content length, and places requests into a bounded command queue. Each client has a bounded event queue. The owner thread streams token deltas, checks monotonic deadlines and cancellation flags, and cancels the engine sequence on terminal cleanup. A disconnected handler sets the client's cancellation event; DELETE enqueues a request ID for owner-thread processing.
+
+**Example.** If a slow stream fills its event queue, the owner drops that request with a 429 terminal event and releases its sequence pages.
+
+**Why here.** Explicit limits bound socket handlers, queued requests, event buffering, body bytes, and request lifetime.
+
+**Tradeoffs.** Queue saturation rejects or terminates requests; the custom SSE protocol is local and does not provide authentication or full OpenAI compatibility.
+
+**Code and ownership.** [`Server.process_request`, `Handler.do_POST` and `do_DELETE`, `Service.terminal`](nanovllm/server.py#L41). Extension.
+
+</details>
+
+<a id="technique-local-safetensors-only-loading"></a>
+
+<details>
+<summary>Local safetensors-only loading</summary>
+
+**Mechanism.** Configuration requires a local model directory, loads Hugging Face config with `local_files_only=True` and `trust_remote_code=False`, and restricts accepted model type and attention/RoPE variants. `load_model` enumerates only `*.safetensors`, opens tensors on CPU, maps packed shards into model parameters, and rejects empty or incomplete checkpoints. Tokenizer loading also disables remote code and network access.
+
+**Example.** A missing local config fails during configuration instead of triggering an implicit model download; a checkpoint with no safetensors files fails before generation.
+
+**Why here.** Offline loading makes model inputs explicit and avoids executing checkpoint pickle or repository-provided model code.
+
+**Tradeoffs.** The loader supports only the Qwen3/full-attention/default-RoPE shape accepted by `Config`; other checkpoint formats need explicit support.
+
+**Code and ownership.** [`Config.__post_init__`](nanovllm/config.py#L25), [`LLMEngine.__init__`](nanovllm/engine/llm_engine.py#L16), and [`load_model`](nanovllm/utils/loader.py#L12). Mixed: extension validation around inherited nano-vLLM model loading.
+
+</details>
 
 ## Verify and measure
 
